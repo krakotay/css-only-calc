@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CSS‑только двоичный калькулятор (+/−)</title>
+<style>
+/* ======  Основная идея  ======
+   ⚠️ CSS‑счётчики суммируют только элементы, которые находятся ПЕРЕД местом вывода
+      counter(total). Поэтому итоговый блок размещён ПОСЛЕ всех термов в DOM.
+      (Визуальный порядок не влияет на вычисление counter().)
+
+   1) Используем CSS‑счётчики как аккумуляторы чисел.
+   2) Отмеченный бит инкрементит локальный счётчик терма t.
+   3) Вклад в глобальный total зависит от выбранного знака терма (+/−) через :has().
+   4) Выводим числа через counter() в двоичном и десятичном виде. Никакого JS.
+
+   Требуется современный браузер с поддержкой :has() и @counter-style.
+*/
+
+:root {
+  --bits: 24;          /* количество битов в каждом терме */
+  --terms: 12;         /* количество термов (слагаемых/вычитаемых) */
+  --cell: 1.9rem;      /* размер квадрата‑чекбокса */
+  --gap: .4rem;
+  --radius: .6rem;
+  --bg: #0f1220;
+  --card: #151a2e;
+  --ink: #e9ecff;
+  --muted: #a9b0d9;
+  --accent: #7aa2ff;
+  --accent-2: #66d9a3;
+  --danger: #ff7a9a;
+}
+
+@media (prefers-color-scheme: light) {
+  :root { --bg: #f6f7fb; --card: #ffffff; --ink:#0f1220; --muted:#5a6185; }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(1200px 700px at 10% 0%, #1a2140 0%, var(--bg) 60%), var(--bg);
+  color: var(--ink);
+  font: 500 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, "Inter", Arial, sans-serif;
+}
+
+.container { max-width: 1100px; margin: 2rem auto; padding: 1.5rem; }
+
+h1 { font: 800 28px/1.2 ui-sans-serif, system-ui, Inter, Roboto, Arial; margin: 0 0 0.75rem; }
+.lead { color: var(--muted); margin-bottom: 1.25rem; }
+
+.card {
+  background: linear-gradient(180deg, color-mix(in hsl, var(--card), #000 10%) 0%, var(--card) 100%);
+  border: 1px solid color-mix(in hsl, var(--card), #000 20%);
+  border-radius: 18px;
+  padding: 1rem;
+  box-shadow: 0 10px 40px rgba(0,0,0,.16);
+}
+
+.header { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 1rem; }
+.meta { color: var(--muted); font-size: 13px; }
+.meta b { color: var(--ink); }
+
+/* Термы */
+.terms { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: .9rem; }
+.term.card { padding: .9rem; }
+.term header { display:flex; justify-content: space-between; align-items: center; gap: .6rem; margin-bottom: .3rem; }
+.term header .title { font-weight: 800; letter-spacing: .02em; }
+.term header .sign { display: inline-flex; gap: .25rem; background: color-mix(in hsl, var(--card), #000 12%); padding: .2rem; border-radius: 999px; border: 1px solid color-mix(in hsl, var(--card), #000 22%); }
+.term header .sign label { padding: .25rem .5rem; border-radius: 999px; cursor: pointer; user-select: none; }
+.term header .sign input { appearance: none; position: absolute; pointer-events: none; }
+.term header .sign .plus + span { color: var(--accent-2); }
+.term header .sign .minus + span { color: var(--danger); }
+.term:has(.minus:checked) header .sign label.minus { background: color-mix(in hsl, var(--danger), transparent 80%); }
+.term:has(.plus:checked)  header .sign label.plus  { background: color-mix(in hsl, var(--accent-2), transparent 80%); }
+
+.bits { display: grid; grid-template-columns: repeat(8, minmax(var(--cell), 1fr)); gap: var(--gap); margin-top: .5rem; margin-bottom: .6rem; }
+.bit {
+  appearance: none; width: var(--cell); height: var(--cell);
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in hsl, var(--card), #000 30%);
+  background: linear-gradient(180deg, color-mix(in hsl, var(--card), #000 8%), color-mix(in hsl, var(--card), #000 18%));
+  display: grid; place-items: center; box-shadow: inset 0 -1px 0 rgba(255,255,255,.05); cursor: pointer;
+}
+.bit::after { content: "0"; color: var(--muted); font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.bit:checked { outline: none; border-color: color-mix(in hsl, var(--accent), #fff 15%);
+  background: linear-gradient(180deg, color-mix(in hsl, var(--accent), #000 10%), color-mix(in hsl, var(--accent), #000 25%));
+  box-shadow: 0 4px 18px color-mix(in hsl, var(--accent), transparent 75%), 0 1px 0 rgba(255,255,255,.06) inset, 0 -1px 0 rgba(0,0,0,.25) inset; }
+.bit:checked::after { content: "1"; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.45); }
+
+.term .footer { display:flex; justify-content: space-between; align-items:center; color: var(--muted); font-size: 12px; }
+.term .val { font: 800 14px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink); display:flex; gap:.4rem; align-items:center; }
+.term .val .sgn { color: var(--muted); margin-right: .1rem; }
+.term .val .chip { display:inline-flex; align-items:center; gap:.35rem; padding:.12rem .45rem; border-radius:.55rem; background: color-mix(in hsl, var(--card), #000 14%); border: 1px solid color-mix(in hsl, var(--card), #000 26%); }
+.term .val .chip::before { color: var(--muted); font: 700 11px/1 ui-sans-serif; letter-spacing: .04em; }
+.term .val .bin::before { content: "0b"; }
+.term .val .dec::before { content: "dec"; }
+.term:has(.plus:checked)  .val .chip { box-shadow: 0 0 0 1px color-mix(in hsl, var(--accent-2), transparent 70%) inset; }
+.term:has(.minus:checked) .val .chip { box-shadow: 0 0 0 1px color-mix(in hsl, var(--danger),   transparent 70%) inset; }
+
+/* ====== CSS counters ====== */
+@counter-style bin { system: numeric; symbols: "0" "1"; }
+
+/* Глобальный счётчик суммы */
+body { counter-reset: total; }
+/* Локальный счётчик значения терма */
+.term { counter-reset: t; }
+
+/* Локальная визуализация: печатаем двоичное и десятичное значения терма */
+.term .val .bin::after { content: counter(t, bin); }
+.term .val .dec::after { content: counter(t); }
+.term:has(.minus:checked) .val .sgn::after { content: "−"; }
+.term:has(.plus:checked)  .val .sgn::after { content: "+"; }
+
+/* ====== Итог ====== */
+.result.card { margin: 1rem 0 1.25rem; padding: 1.2rem 1rem; position: sticky; bottom: .75rem; z-index: 10; }
+.result h2 { margin: 0; font-size: 18px; }
+.sum { display:flex; gap: .8rem; align-items: baseline; flex-wrap: wrap; }
+.sum .value { font: 900 28px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.sum .value .label { color: var(--muted); font: 700 12px/1 ui-sans-serif; margin-right: .5rem; letter-spacing: .04em; text-transform: uppercase; }
+.sum .value.bin::after { content: counter(total, bin); }
+.sum .value.dec::after { content: counter(total); }
+
+/* ====== Маппинг битов в веса 2^k ======
+   Для каждого бита делаем:
+   - вклад в локальный t (всегда +)
+   - вклад в глобальный total: +, если выбран знак "+"; −, если "−"
+*/
+/* 2^0 .. 2^23 */
+/* локальные t */
+.term .bits .bit:nth-child(1):checked { counter-increment: t 1; }
+.term .bits .bit:nth-child(2):checked { counter-increment: t 2; }
+.term .bits .bit:nth-child(3):checked { counter-increment: t 4; }
+.term .bits .bit:nth-child(4):checked { counter-increment: t 8; }
+.term .bits .bit:nth-child(5):checked { counter-increment: t 16; }
+.term .bits .bit:nth-child(6):checked { counter-increment: t 32; }
+.term .bits .bit:nth-child(7):checked { counter-increment: t 64; }
+.term .bits .bit:nth-child(8):checked { counter-increment: t 128; }
+.term .bits .bit:nth-child(9):checked { counter-increment: t 256; }
+.term .bits .bit:nth-child(10):checked{ counter-increment: t 512; }
+.term .bits .bit:nth-child(11):checked{ counter-increment: t 1024; }
+.term .bits .bit:nth-child(12):checked{ counter-increment: t 2048; }
+.term .bits .bit:nth-child(13):checked{ counter-increment: t 4096; }
+.term .bits .bit:nth-child(14):checked{ counter-increment: t 8192; }
+.term .bits .bit:nth-child(15):checked{ counter-increment: t 16384; }
+.term .bits .bit:nth-child(16):checked{ counter-increment: t 32768; }
+.term .bits .bit:nth-child(17):checked{ counter-increment: t 65536; }
+.term .bits .bit:nth-child(18):checked{ counter-increment: t 131072; }
+.term .bits .bit:nth-child(19):checked{ counter-increment: t 262144; }
+.term .bits .bit:nth-child(20):checked{ counter-increment: t 524288; }
+.term .bits .bit:nth-child(21):checked{ counter-increment: t 1048576; }
+.term .bits .bit:nth-child(22):checked{ counter-increment: t 2097152; }
+.term .bits .bit:nth-child(23):checked{ counter-increment: t 4194304; }
+.term .bits .bit:nth-child(24):checked{ counter-increment: t 8388608; }
+
+/* total: плюс */
+.term:has(.plus:checked) .bits .bit:nth-child(1):checked  { counter-increment: total 1  t 1; }
+.term:has(.plus:checked) .bits .bit:nth-child(2):checked  { counter-increment: total 2  t 2; }
+.term:has(.plus:checked) .bits .bit:nth-child(3):checked  { counter-increment: total 4  t 4; }
+.term:has(.plus:checked) .bits .bit:nth-child(4):checked  { counter-increment: total 8  t 8; }
+.term:has(.plus:checked) .bits .bit:nth-child(5):checked  { counter-increment: total 16 t 16; }
+.term:has(.plus:checked) .bits .bit:nth-child(6):checked  { counter-increment: total 32 t 32; }
+.term:has(.plus:checked) .bits .bit:nth-child(7):checked  { counter-increment: total 64 t 64; }
+.term:has(.plus:checked) .bits .bit:nth-child(8):checked  { counter-increment: total 128 t 128; }
+.term:has(.plus:checked) .bits .bit:nth-child(9):checked  { counter-increment: total 256 t 256; }
+.term:has(.plus:checked) .bits .bit:nth-child(10):checked { counter-increment: total 512 t 512; }
+.term:has(.plus:checked) .bits .bit:nth-child(11):checked { counter-increment: total 1024 t 1024; }
+.term:has(.plus:checked) .bits .bit:nth-child(12):checked { counter-increment: total 2048 t 2048; }
+.term:has(.plus:checked) .bits .bit:nth-child(13):checked { counter-increment: total 4096 t 4096; }
+.term:has(.plus:checked) .bits .bit:nth-child(14):checked { counter-increment: total 8192 t 8192; }
+.term:has(.plus:checked) .bits .bit:nth-child(15):checked { counter-increment: total 16384 t 16384; }
+.term:has(.plus:checked) .bits .bit:nth-child(16):checked { counter-increment: total 32768 t 32768; }
+.term:has(.plus:checked) .bits .bit:nth-child(17):checked { counter-increment: total 65536 t 65536; }
+.term:has(.plus:checked) .bits .bit:nth-child(18):checked { counter-increment: total 131072 t 131072; }
+.term:has(.plus:checked) .bits .bit:nth-child(19):checked { counter-increment: total 262144 t 262144; }
+.term:has(.plus:checked) .bits .bit:nth-child(20):checked { counter-increment: total 524288 t 524288; }
+.term:has(.plus:checked) .bits .bit:nth-child(21):checked { counter-increment: total 1048576 t 1048576; }
+.term:has(.plus:checked) .bits .bit:nth-child(22):checked { counter-increment: total 2097152 t 2097152; }
+.term:has(.plus:checked) .bits .bit:nth-child(23):checked { counter-increment: total 4194304 t 4194304; }
+.term:has(.plus:checked) .bits .bit:nth-child(24):checked { counter-increment: total 8388608 t 8388608; }
+
+/* total: минус */
+.term:has(.minus:checked) .bits .bit:nth-child(1):checked  { counter-increment: total -1  t 1; }
+.term:has(.minus:checked) .bits .bit:nth-child(2):checked  { counter-increment: total -2  t 2; }
+.term:has(.minus:checked) .bits .bit:nth-child(3):checked  { counter-increment: total -4  t 4; }
+.term:has(.minus:checked) .bits .bit:nth-child(4):checked  { counter-increment: total -8  t 8; }
+.term:has(.minus:checked) .bits .bit:nth-child(5):checked  { counter-increment: total -16 t 16; }
+.term:has(.minus:checked) .bits .bit:nth-child(6):checked  { counter-increment: total -32 t 32; }
+.term:has(.minus:checked) .bits .bit:nth-child(7):checked  { counter-increment: total -64 t 64; }
+.term:has(.minus:checked) .bits .bit:nth-child(8):checked  { counter-increment: total -128 t 128; }
+.term:has(.minus:checked) .bits .bit:nth-child(9):checked  { counter-increment: total -256 t 256; }
+.term:has(.minus:checked) .bits .bit:nth-child(10):checked { counter-increment: total -512 t 512; }
+.term:has(.minus:checked) .bits .bit:nth-child(11):checked { counter-increment: total -1024 t 1024; }
+.term:has(.minus:checked) .bits .bit:nth-child(12):checked { counter-increment: total -2048 t 2048; }
+.term:has(.minus:checked) .bits .bit:nth-child(13):checked { counter-increment: total -4096 t 4096; }
+.term:has(.minus:checked) .bits .bit:nth-child(14):checked { counter-increment: total -8192 t 8192; }
+.term:has(.minus:checked) .bits .bit:nth-child(15):checked { counter-increment: total -16384 t 16384; }
+.term:has(.minus:checked) .bits .bit:nth-child(16):checked { counter-increment: total -32768 t 32768; }
+.term:has(.minus:checked) .bits .bit:nth-child(17):checked { counter-increment: total -65536 t 65536; }
+.term:has(.minus:checked) .bits .bit:nth-child(18):checked { counter-increment: total -131072 t 131072; }
+.term:has(.minus:checked) .bits .bit:nth-child(19):checked { counter-increment: total -262144 t 262144; }
+.term:has(.minus:checked) .bits .bit:nth-child(20):checked { counter-increment: total -524288 t 524288; }
+.term:has(.minus:checked) .bits .bit:nth-child(21):checked { counter-increment: total -1048576 t 1048576; }
+.term:has(.minus:checked) .bits .bit:nth-child(22):checked { counter-increment: total -2097152 t 2097152; }
+.term:has(.minus:checked) .bits .bit:nth-child(23):checked { counter-increment: total -4194304 t 4194304; }
+.term:has(.minus:checked) .bits .bit:nth-child(24):checked { counter-increment: total -8388608 t 8388608; }
+
+/* Подсказки по разрядам */
+.hints { display:grid; grid-template-columns: repeat(8, minmax(var(--cell), 1fr)); gap: var(--gap); font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
+.hints span { display:grid; place-items:center; padding: .2rem 0; border-radius: .35rem; background: color-mix(in hsl, var(--card), #000 10%); border: 1px dashed color-mix(in hsl, var(--card), #000 22%); }
+
+hr.sep { border:0; border-top: 1px dashed color-mix(in hsl, var(--card), #000 24%); margin: .7rem 0 .6rem; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>Двоичный калькулятор на <abbr title="HTML + CSS only">CSS‑счётчиках</abbr> (только +/−)</h1>
+        <p class="lead">Кликайте биты в каждом терме и выбирайте знак. Сумма пересчитывается на лету, полностью без JavaScript. Каждый терм — 24‑битный беззнаковый аргумент; итог может быть отрицательным (вычитание).</p>
+      </div>
+      <div class="meta card" style="padding:.6rem .8rem;">
+        <div>Браузер: требуется поддержка <b>:has()</b> и <b>@counter-style</b>.</div>
+        <div>ВАЖНО: итог считается только по элементам <em>выше места вывода</em>. Поэтому «Результат» находится внизу документа.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem; padding: .8rem 1rem .6rem;">
+      <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:.4rem; color:var(--muted);"><span>Подсказки по весам разрядов (LSB→MSB):</span></div>
+      <div class="hints">
+        <span>2^0</span><span>2^1</span><span>2^2</span><span>2^3</span><span>2^4</span><span>2^5</span><span>2^6</span><span>2^7</span>
+      </div>
+    </div>
+
+    <section class="terms">
+      <!-- 12 одинаковых термов по 24 бита. Дублируйте article.term чтобы добавить ещё. -->
+      <!-- Term 1 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 1</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s1" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s1"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита, LSB … MSB -->
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+          <input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 2 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 2</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s2" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s2"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 3 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 3</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s3" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s3"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 4 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 4</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s4" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s4"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 5 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 5</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s5" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s5"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 6 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 6</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s6" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s6"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 7 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 7</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s7" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s7"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 8 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 8</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s8" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s8"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 9 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 9</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s9" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s9"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 10 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 10</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s10" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s10"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 11 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 11</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s11" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s11"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+      <!-- Term 12 -->
+      <article class="term card">
+        <header>
+          <div class="title">Терм 12</div>
+          <div class="sign">
+            <label class="plus"><input class="plus" type="radio" name="s12" checked><span>+</span></label>
+            <label class="minus"><input class="minus" type="radio" name="s12"><span>−</span></label>
+          </div>
+        </header>
+        <div class="bits">
+          <!-- 24 бита -->
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+          <input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox"><input class="bit" type="checkbox">
+        </div>
+        <div class="footer"><span>Значение:</span>
+  <span class="val"><span class="sgn"></span><span class="bin chip"></span><span class="dec chip"></span></span>
+</div>
+      </article>
+
+    </section>
+
+    <!-- ====== Итог (должен находиться НИЖЕ всех термов в DOM!) ====== -->
+    <div class="result card">
+      <h2>Результат</h2>
+      <div class="sum">
+        <div class="value bin"><span class="label">Σ (BIN)</span></div>
+        <div class="value dec"><span class="label">Σ (DEC)</span></div>
+      </div>
+    </div>
+
+    <hr class="sep" />
+    <div class="meta">Совет: если нужно больше битов или термов, продублируйте блоки <code>.bit</code> или карточку <code>.term</code>. CSS‑счётчики не имеют фиксированного предела — последовательность может быть сколь угодно длинной (пока ваш браузер тянет DOM 🙂).</div>
+  </div>
+</body>
+</html>
