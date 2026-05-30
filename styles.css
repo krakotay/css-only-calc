@@ -1,0 +1,527 @@
+:root {
+  color-scheme: light;
+  --page: #e8edf1;
+  --shell: #282a2f;
+  --shell-top: #3b3e45;
+  --screen: #bdd9a6;
+  --screen-ink: #172312;
+  --key: #f6f7f4;
+  --key-edge: #b7bdba;
+  --key-ink: #1f2427;
+  --accent: #2f72cc;
+  --op: #e58d2e;
+  --op-edge: #9b5514;
+  --green: #279a77;
+  --red: #ca514c;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 70%), rgb(207 216 222 / 76%)),
+    var(--page);
+  color: var(--key-ink);
+  font: 500 16px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+label {
+  font: inherit;
+}
+
+.app {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.85rem, 3vw, 2rem);
+}
+
+.calculator {
+  --a1: 0;
+  --a2: 0;
+  --a3: 0;
+  --b1: 0;
+  --b2: 0;
+  --b3: 0;
+  --a-w1: 0;
+  --a-w2: 0;
+  --a-w3: 0;
+  --b-w1: 0;
+  --b-w2: 0;
+  --b-w3: 0;
+  --a: calc((var(--a1) * var(--a-w1)) + (var(--a2) * var(--a-w2)) + (var(--a3) * var(--a-w3)));
+  --b: calc((var(--b1) * var(--b-w1)) + (var(--b2) * var(--b-w2)) + (var(--b3) * var(--b-w3)));
+  --b-safe: var(--b);
+  --result: calc(var(--a) + var(--b));
+  width: min(100%, 430px);
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, var(--shell-top), var(--shell) 38%, #202226),
+    var(--shell);
+  box-shadow: 0 26px 70px rgb(18 22 28 / 24%), inset 0 1px 0 rgb(255 255 255 / 16%);
+  counter-reset:
+    a var(--a)
+    b var(--b)
+    result var(--result);
+}
+
+.state-bank {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.display {
+  display: grid;
+  gap: 0.65rem;
+  min-height: 11rem;
+  padding: 1rem;
+  border: 1px solid rgb(34 48 28 / 38%);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 28%), rgb(0 0 0 / 5%)),
+    var(--screen);
+  color: var(--screen-ink);
+  box-shadow: inset 0 2px 10px rgb(22 35 19 / 20%);
+}
+
+.brand-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: rgb(23 35 18 / 68%);
+  font: 800 0.72rem/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.screen-state::after {
+  content: "ENTER A";
+}
+
+.calculator:not(:has(#op-none:checked)):not(:has(#mode-result:checked)) .screen-state::after {
+  content: "ENTER B";
+}
+
+.calculator:has(#mode-result:checked) .screen-state::after,
+.calculator:has(.equals-key:hover) .screen-state::after {
+  content: "RESULT";
+}
+
+.expression {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.6rem;
+  color: rgb(23 35 18 / 78%);
+  font: 850 clamp(1rem, 4.5vw, 1.2rem)/1.15 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.operand {
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgb(23 35 18 / 22%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 14%);
+  text-overflow: ellipsis;
+}
+
+.operand--a::after {
+  content: counter(a);
+}
+
+.operand--b::after {
+  content: counter(b);
+}
+
+.operator-readout,
+.equals-readout {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: rgb(23 35 18 / 13%);
+  font-weight: 950;
+}
+
+.operator-readout,
+.operand--b,
+.equals-readout {
+  opacity: 0;
+}
+
+.calculator:not(:has(#op-none:checked)) .operator-readout,
+.calculator:not(:has(#op-none:checked)) .operand--b,
+.calculator:has(#mode-result:checked) .equals-readout,
+.calculator:has(.equals-key:hover) .equals-readout {
+  opacity: 1;
+}
+
+.calculator:has(#op-add:checked) .operator-readout::after {
+  content: "+";
+}
+
+.calculator:has(#op-subtract:checked) .operator-readout::after {
+  content: "-";
+}
+
+.calculator:has(#op-multiply:checked) .operator-readout::after {
+  content: "*";
+}
+
+.calculator:has(#op-divide:checked) .operator-readout::after {
+  content: "/";
+}
+
+.main-output {
+  align-self: end;
+  min-height: 4.15rem;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  color: var(--screen-ink);
+  font: 950 clamp(3.2rem, 16vw, 5rem)/0.95 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.calculator:has(#op-none:checked):not(:has(#mode-result:checked)) .main-output::after {
+  content: counter(a);
+}
+
+.calculator:not(:has(#op-none:checked)):not(:has(#mode-result:checked)) .main-output::after {
+  content: counter(b);
+}
+
+.calculator:has(#mode-result:checked) .main-output::after,
+.calculator:has(.equals-key:hover) .main-output::after {
+  content: counter(result);
+}
+
+.calculator:has(#mode-result:checked):has(#op-divide:checked):not(:has(#b1-1:checked, #b1-2:checked, #b1-3:checked, #b1-4:checked, #b1-5:checked, #b1-6:checked, #b1-7:checked, #b1-8:checked, #b1-9:checked, #b2-1:checked, #b2-2:checked, #b2-3:checked, #b2-4:checked, #b2-5:checked, #b2-6:checked, #b2-7:checked, #b2-8:checked, #b2-9:checked, #b3-1:checked, #b3-2:checked, #b3-3:checked, #b3-4:checked, #b3-5:checked, #b3-6:checked, #b3-7:checked, #b3-8:checked, #b3-9:checked)) .main-output::after,
+.calculator:has(.equals-key:hover):has(#op-divide:checked):not(:has(#b1-1:checked, #b1-2:checked, #b1-3:checked, #b1-4:checked, #b1-5:checked, #b1-6:checked, #b1-7:checked, #b1-8:checked, #b1-9:checked, #b2-1:checked, #b2-2:checked, #b2-3:checked, #b2-4:checked, #b2-5:checked, #b2-6:checked, #b2-7:checked, #b2-8:checked, #b2-9:checked, #b3-1:checked, #b3-2:checked, #b3-3:checked, #b3-4:checked, #b3-5:checked, #b3-6:checked, #b3-7:checked, #b3-8:checked, #b3-9:checked)) .main-output::after {
+  content: "Err";
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.35rem;
+  gap: 0.65rem;
+}
+
+.number-pad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.operator-pad {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.digit-key,
+.operator-key,
+.equals-key,
+.clear-key {
+  position: relative;
+  min-width: 0;
+  min-height: 4.35rem;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.operator-key input,
+.equals-key input,
+.digit-proxy input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.digit-proxy,
+.digit-key::before,
+.operator-key span,
+.equals-key span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--key-edge);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 76%), rgb(0 0 0 / 6%)),
+    var(--key);
+  color: var(--key-ink);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 86%),
+    0 2px 0 rgb(0 0 0 / 24%);
+}
+
+.digit-key::before {
+  content: "";
+  font: 950 1.7rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.number-pad .digit-key:nth-child(1)::before { content: "7"; }
+.number-pad .digit-key:nth-child(2)::before { content: "8"; }
+.number-pad .digit-key:nth-child(3)::before { content: "9"; }
+.number-pad .digit-key:nth-child(4)::before { content: "4"; }
+.number-pad .digit-key:nth-child(5)::before { content: "5"; }
+.number-pad .digit-key:nth-child(6)::before { content: "6"; }
+.number-pad .digit-key:nth-child(7)::before { content: "1"; }
+.number-pad .digit-key:nth-child(8)::before { content: "2"; }
+.number-pad .digit-key:nth-child(9)::before { content: "3"; }
+.number-pad .digit-key:nth-child(11)::before { content: "0"; }
+
+.digit-proxy {
+  opacity: 0;
+  pointer-events: none;
+  font: 950 1.7rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.clear-key {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--key-edge);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 86%),
+    0 2px 0 rgb(0 0 0 / 24%);
+}
+
+.operator-key span {
+  border-color: var(--op-edge);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 22%), rgb(0 0 0 / 10%)),
+    var(--op);
+  color: #251400;
+  font: 950 1.65rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.clear-key {
+  border-color: #802d29;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 20%), rgb(0 0 0 / 10%)),
+    var(--red);
+  color: white;
+  font-weight: 950;
+}
+
+.equals-key span {
+  border-color: #14654f;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 22%), rgb(0 0 0 / 11%)),
+    var(--green);
+  color: white;
+}
+
+.equals-key b {
+  font: 950 1.55rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.equals-key small {
+  display: block;
+  font: 900 0.54rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0;
+}
+
+.calculator:has(#mode-result:checked) .equals-key span,
+.operator-key:has(input:checked) span {
+  transform: translateY(1px);
+  box-shadow: inset 0 3px 8px rgb(0 0 0 / 25%);
+}
+
+.digit-key:active .digit-proxy,
+.operator-key:active span,
+.equals-key:active span,
+.clear-key:active {
+  transform: translateY(1px);
+}
+
+.equals-key:hover span {
+  animation: mouse-compute 0.7s steps(2) infinite;
+}
+
+@keyframes mouse-compute {
+  50% {
+    filter: brightness(1.12);
+  }
+}
+
+.calculator:has(#op-none:checked):has(#a1-empty:checked):not(:has(#mode-result:checked)) .digit-proxy--a1,
+.calculator:has(#op-none:checked):not(:has(#a1-empty:checked)):has(#a2-empty:checked):not(:has(#mode-result:checked)) .digit-proxy--a2,
+.calculator:has(#op-none:checked):not(:has(#a2-empty:checked)):not(:has(#mode-result:checked)) .digit-proxy--a3,
+.calculator:not(:has(#op-none:checked)):has(#b1-empty:checked):not(:has(#mode-result:checked)) .digit-proxy--b1,
+.calculator:not(:has(#op-none:checked)):not(:has(#b1-empty:checked)):has(#b2-empty:checked):not(:has(#mode-result:checked)) .digit-proxy--b2,
+.calculator:not(:has(#op-none:checked)):not(:has(#b2-empty:checked)):not(:has(#mode-result:checked)) .digit-proxy--b3 {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.operator-key:has(input:focus-visible) span,
+.equals-key:has(input:focus-visible) span,
+.digit-proxy:has(input:focus-visible),
+.clear-key:focus-visible {
+  outline: 3px solid rgb(255 255 255 / 72%);
+  outline-offset: 3px;
+}
+
+.calculator:not(:has(#a1-empty:checked)) {
+  --a-w1: 1;
+}
+
+.calculator:not(:has(#a2-empty:checked)) {
+  --a-w1: 10;
+  --a-w2: 1;
+}
+
+.calculator:not(:has(#a3-empty:checked)) {
+  --a-w1: 100;
+  --a-w2: 10;
+  --a-w3: 1;
+}
+
+.calculator:not(:has(#b1-empty:checked)) {
+  --b-w1: 1;
+}
+
+.calculator:not(:has(#b2-empty:checked)) {
+  --b-w1: 10;
+  --b-w2: 1;
+}
+
+.calculator:not(:has(#b3-empty:checked)) {
+  --b-w1: 100;
+  --b-w2: 10;
+  --b-w3: 1;
+}
+
+.calculator:has(#a1-1:checked) { --a1: 1; }
+.calculator:has(#a1-2:checked) { --a1: 2; }
+.calculator:has(#a1-3:checked) { --a1: 3; }
+.calculator:has(#a1-4:checked) { --a1: 4; }
+.calculator:has(#a1-5:checked) { --a1: 5; }
+.calculator:has(#a1-6:checked) { --a1: 6; }
+.calculator:has(#a1-7:checked) { --a1: 7; }
+.calculator:has(#a1-8:checked) { --a1: 8; }
+.calculator:has(#a1-9:checked) { --a1: 9; }
+.calculator:has(#a2-1:checked) { --a2: 1; }
+.calculator:has(#a2-2:checked) { --a2: 2; }
+.calculator:has(#a2-3:checked) { --a2: 3; }
+.calculator:has(#a2-4:checked) { --a2: 4; }
+.calculator:has(#a2-5:checked) { --a2: 5; }
+.calculator:has(#a2-6:checked) { --a2: 6; }
+.calculator:has(#a2-7:checked) { --a2: 7; }
+.calculator:has(#a2-8:checked) { --a2: 8; }
+.calculator:has(#a2-9:checked) { --a2: 9; }
+.calculator:has(#a3-1:checked) { --a3: 1; }
+.calculator:has(#a3-2:checked) { --a3: 2; }
+.calculator:has(#a3-3:checked) { --a3: 3; }
+.calculator:has(#a3-4:checked) { --a3: 4; }
+.calculator:has(#a3-5:checked) { --a3: 5; }
+.calculator:has(#a3-6:checked) { --a3: 6; }
+.calculator:has(#a3-7:checked) { --a3: 7; }
+.calculator:has(#a3-8:checked) { --a3: 8; }
+.calculator:has(#a3-9:checked) { --a3: 9; }
+.calculator:has(#b1-1:checked) { --b1: 1; }
+.calculator:has(#b1-2:checked) { --b1: 2; }
+.calculator:has(#b1-3:checked) { --b1: 3; }
+.calculator:has(#b1-4:checked) { --b1: 4; }
+.calculator:has(#b1-5:checked) { --b1: 5; }
+.calculator:has(#b1-6:checked) { --b1: 6; }
+.calculator:has(#b1-7:checked) { --b1: 7; }
+.calculator:has(#b1-8:checked) { --b1: 8; }
+.calculator:has(#b1-9:checked) { --b1: 9; }
+.calculator:has(#b2-1:checked) { --b2: 1; }
+.calculator:has(#b2-2:checked) { --b2: 2; }
+.calculator:has(#b2-3:checked) { --b2: 3; }
+.calculator:has(#b2-4:checked) { --b2: 4; }
+.calculator:has(#b2-5:checked) { --b2: 5; }
+.calculator:has(#b2-6:checked) { --b2: 6; }
+.calculator:has(#b2-7:checked) { --b2: 7; }
+.calculator:has(#b2-8:checked) { --b2: 8; }
+.calculator:has(#b2-9:checked) { --b2: 9; }
+.calculator:has(#b3-1:checked) { --b3: 1; }
+.calculator:has(#b3-2:checked) { --b3: 2; }
+.calculator:has(#b3-3:checked) { --b3: 3; }
+.calculator:has(#b3-4:checked) { --b3: 4; }
+.calculator:has(#b3-5:checked) { --b3: 5; }
+.calculator:has(#b3-6:checked) { --b3: 6; }
+.calculator:has(#b3-7:checked) { --b3: 7; }
+.calculator:has(#b3-8:checked) { --b3: 8; }
+.calculator:has(#b3-9:checked) { --b3: 9; }
+
+.calculator:has(#op-subtract:checked) {
+  --result: calc(var(--a) - var(--b));
+}
+
+.calculator:has(#op-multiply:checked) {
+  --result: calc(var(--a) * var(--b));
+}
+
+.calculator:has(#op-divide:checked) {
+  --result: calc(var(--a) / var(--b-safe));
+}
+
+.calculator:has(#op-divide:checked):not(:has(#b1-1:checked, #b1-2:checked, #b1-3:checked, #b1-4:checked, #b1-5:checked, #b1-6:checked, #b1-7:checked, #b1-8:checked, #b1-9:checked, #b2-1:checked, #b2-2:checked, #b2-3:checked, #b2-4:checked, #b2-5:checked, #b2-6:checked, #b2-7:checked, #b2-8:checked, #b2-9:checked, #b3-1:checked, #b3-2:checked, #b3-3:checked, #b3-4:checked, #b3-5:checked, #b3-6:checked, #b3-7:checked, #b3-8:checked, #b3-9:checked)) {
+  --b-safe: 1;
+}
+
+@supports not selector(:has(*)) {
+  .calculator::before {
+    content: "Need :has() support.";
+    display: block;
+    padding: 0.75rem;
+    border-radius: 6px;
+    background: #f8d7da;
+    color: #612025;
+    font-weight: 850;
+  }
+}
+
+@media (max-width: 420px) {
+  .calculator {
+    padding: 0.75rem;
+  }
+
+  .keypad {
+    grid-template-columns: minmax(0, 1fr) 3.8rem;
+  }
+
+  .digit-key,
+  .operator-key,
+  .equals-key,
+  .clear-key {
+    min-height: 3.9rem;
+  }
+
+  .display {
+    min-height: 10.25rem;
+  }
+}
