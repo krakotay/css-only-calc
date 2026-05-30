@@ -697,7 +697,7 @@ button, input, label { font: inherit; }
 .expression { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: center; gap: 0.4rem; min-height: 2.6rem; color: rgb(23 35 18 / 78%); font: 850 clamp(1rem, 4.5vw, 1.2rem)/1.15 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .operand { min-width: 0; overflow: hidden; padding: 0.45rem 0.55rem; border: 1px solid rgb(23 35 18 / 22%); border-radius: 6px; background: rgb(255 255 255 / 14%); text-overflow: ellipsis; }
 .digit-list { display: inline-flex; max-width: 100%; justify-content: flex-end; overflow: hidden; font-variant-numeric: tabular-nums; }
-.display-digit, .zero-digit, .result-digit, .result-sign { display: inline-grid; place-items: center; min-width: 0; overflow: hidden; }
+.display-digit, .zero-digit, .result-digit, .result-sign { display: inline-grid; flex: 0 0 auto; place-items: center; min-width: 0; overflow: hidden; }
 .display-digit { counter-reset: d var(--digit); width: 1.12ch; }
 .display-digit::after { content: counter(d); }
 .operator-readout, .equals-readout { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: rgb(23 35 18 / 13%); font-weight: 950; }
